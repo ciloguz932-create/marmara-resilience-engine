@@ -1,0 +1,43 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# --- Environment ---
+.venv/
+venv/
+env/
+.env
+config/local.toml
+
+# --- Data ---
+# Generated and downloaded data never enters the repository.
+# Synthetic worlds are reproducible from a seed; regenerate, do not commit.
+data/raw/*
+data/interim/*
+data/processed/*
+data/synthetic/*
+!data/**/.gitkeep
+
+# --- Simulation outputs ---
+outputs/
+*.gpkg
+*.geojson
+*.tif
+*.tiff
+*.parquet
+
+# --- Blender ---
+*.blend1
+*.blend2
+blender/out/
+*.glb
+
+# --- OS / editor ---
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/

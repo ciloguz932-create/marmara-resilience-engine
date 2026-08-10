@@ -1,0 +1,162 @@
+# MRE-001 default configuration.
+#
+# Every value here is a PROTOTYPE parameter for a SYNTHETIC city.
+# None of it is calibrated against real Marmara/Istanbul data.
+# Copy to config/local.toml (gitignored) to override machine-specific paths.
+
+[project]
+name = "MRE-001"
+# Projected CRS for the synthetic study area. PROVISIONAL - see
+# docs/SCIENTIFIC_ASSUMPTIONS.md section "CRS". Not a Marmara-wide decision.
+crs = "EPSG:32635"
+
+[environment]
+# Required so pyproj/GDAL can find proj.db and gdal data files. These are set
+# into os.environ by mre.config.bootstrap_geo_env() at import time; the global
+# Windows environment is never modified.
+qgis_root = "C:/Program Files/QGIS 3.44.12"
+gdal_data = "C:/Program Files/QGIS 3.44.12/apps/gdal/share/gdal"
+proj_data = "C:/Program Files/QGIS 3.44.12/share/proj"
+blender_exe = "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe"
+
+[random]
+# Master seed. All sub-streams derive from this for reproducibility.
+seed = 20260810
+
+[synthetic_city]
+# Local planar extent in metres, origin at the CRS false-origin offset below.
+extent_m = [8000.0, 8000.0]
+origin_easting = 660000.0
+origin_northing = 4535000.0
+
+n_buildings = 1000
+n_hospitals = 3
+# Road grid: number of cells; nodes = (nx+1)*(ny+1)
+road_grid = [20, 20]
+# Fraction of grid edges randomly removed to break perfect regularity.
+road_edge_dropout = 0.12
+
+[synthetic_city.buildings]
+construction_year_range = [1955, 2020]
+floors_range = [1, 12]
+# Square footprints: side length in metres, sampled uniformly.
+footprint_side_range = [8.0, 24.0]
+# Relative frequency of prototype structural types.
+structural_type_weights = { RC_FRAME = 0.55, RC_SHEAR_WALL = 0.10, MASONRY = 0.25, STEEL = 0.05, OTHER = 0.05 }
+occupancy_weights = { RESIDENTIAL = 0.75, COMMERCIAL = 0.15, PUBLIC = 0.07, INDUSTRIAL = 0.03 }
+mean_occupants_per_floor = 8.0
+
+# Synthetic vulnerability index. Heterogeneous by construction, never a
+# constant. INVENTED factors -- see docs/SCIENTIFIC_ASSUMPTIONS.md.
+#   v = type_factor * year_factor * (floors/ref)^exp * lognormal(sigma_ln)
+# Higher v = more fragile: fragility medians are DIVIDED by v.
+[synthetic_city.buildings.vulnerability]
+structural_type_factor = { RC_FRAME = 1.00, RC_SHEAR_WALL = 0.78, MASONRY = 1.40, STEEL = 0.70, OTHER = 1.25 }
+# Era breakpoints loosely echo the idea of successive code generations, but the
+# factors are invented and are NOT tied to any specific national code revision.
+year_breakpoints = [1975, 1999]
+year_factor = [1.35, 1.10, 0.85]
+floors_reference = 5.0
+floors_exponent = 0.18
+sigma_ln = 0.20
+clip = [0.35, 2.60]
+
+[synthetic_city.population]
+# Population units are a SEPARATE spatial grid, deliberately decoupled from
+# buildings so that demand never depends on the damage model.
+grid = [15, 15]
+total_population = 120000
+count_sigma_ln = 0.55
+
+[synthetic_city.hospitals]
+capacity_range = [150, 600]
+emergency_capacity_fraction = 0.15
+
+[synthetic_city.roads]
+# Free-flow travel speed in km/h by prototype road class.
+speed_kmh = { ARTERIAL = 50.0, COLLECTOR = 35.0, LOCAL = 20.0 }
+class_weights = { ARTERIAL = 0.15, COLLECTOR = 0.30, LOCAL = 0.55 }
+# Disruption susceptibility multiplier. Narrow local streets are blocked by
+# less debris than wide arterials. INVENTED.
+susceptibility = { ARTERIAL = 0.60, COLLECTOR = 1.00, LOCAL = 1.40 }
+
+[hazard]
+# Prototype scenario: a synthetic line source with distance-decaying intensity.
+# Intensity is a dimensionless PROXY, not a calibrated PGA or spectral value.
+scenario_id = "SYN-M75-NORTH"
+magnitude = 7.5
+# "point_source_decay" (epicenter) or "line_source_decay" (source_line).
+model = "point_source_decay"
+# Epicenter in the synthetic local CRS (metres).
+epicenter = [664000.0, 4532000.0]
+# Source line endpoints in the synthetic local CRS (metres).
+source_line = [[658000.0, 4533000.0], [672000.0, 4534500.0]]
+# Saturation distance (km) preventing a singularity at zero distance.
+near_source_saturation_km = 3.0
+# Hard upper bound on the intensity proxy, so the lognormal tail cannot
+# produce absurd values.
+max_intensity = 2.0
+# Intensity decay: I = intensity_at_source * exp(-decay_per_km * d_eff_km)
+# decay_per_km was chosen so the synthetic city spans a MEANINGFUL damage
+# gradient rather than saturating (at 0.045 the median building collapsed,
+# which exercises nothing). It is a tuning choice for a useful prototype, NOT
+# a calibration against observed attenuation. See docs/SCIENTIFIC_ASSUMPTIONS.md.
+intensity_at_source = 1.00
+decay_per_km = 0.150
+# Lognormal spatial variability of intensity (epistemic + aleatory proxy).
+intensity_sigma_ln = 0.25
+
+[damage]
+# Prototype fragility. Median intensity at which each damage state is reached,
+# for a reference building; modified per-building by vulnerability index.
+# THESE ARE INVENTED NUMBERS. See docs/SCIENTIFIC_ASSUMPTIONS.md.
+states = ["NONE", "SLIGHT", "MODERATE", "SEVERE", "COLLAPSE"]
+median_intensity = { SLIGHT = 0.18, MODERATE = 0.32, SEVERE = 0.52, COLLAPSE = 0.75 }
+beta_ln = 0.55
+
+[roads.disruption]
+# Probability a road link is blocked, driven by adjacent building collapse
+# plus a baseline intrinsic failure probability.
+baseline_closure_probability = 0.01
+# Additional closure probability contributed per adjacent collapsed building.
+per_adjacent_collapse = 0.20
+# Buildings within this distance (m) of a link can block it.
+adjacency_radius_m = 30.0
+# Travel-time multiplier when a link is degraded rather than fully closed.
+degraded_speed_factor = 0.4
+probability_degraded_given_affected = 0.5
+
+[accessibility]
+# Population unit is considered unreachable beyond this travel time (minutes).
+# A REPORTING CONVENTION, not a clinical threshold. Unrelated to any
+# "golden hour" evidence base.
+max_travel_time_min = 60.0
+# A route counts as disrupted when its post-event travel time exceeds the
+# baseline by more than this, or when it becomes unreachable. Small positive
+# value so float noise is not counted as disruption.
+disrupted_route_tolerance_min = 0.01
+
+[monte_carlo]
+n_simulations = 1000
+# Chunk size for streaming results to disk rather than holding all in memory.
+chunk_size = 100
+# Percentiles reported for every distribution. These are EMPIRICAL QUANTILES
+# of the simulated distribution -- NOT confidence intervals. See
+# docs/SCIENTIFIC_ASSUMPTIONS.md section 6.
+percentiles = [5, 25, 50, 75, 95]
+
+[interventions]
+budget = 1000000.0
+
+[interventions.building_retrofit]
+cost_per_building = 25000.0
+# Multiplicative increase applied to a building's fragility medians.
+fragility_median_uplift = 1.35
+
+[interventions.road_hardening]
+cost_per_link = 40000.0
+closure_probability_multiplier = 0.35
+
+[interventions.hospital_support]
+cost_per_hospital = 120000.0
+emergency_capacity_multiplier = 1.5
