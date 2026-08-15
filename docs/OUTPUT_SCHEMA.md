@@ -160,6 +160,71 @@ and `mean_expected_damage_index` [0,1].
 
 ---
 
+## 4. Intervention comparison outputs (Phase 5)
+
+Written by `write_intervention_outputs`. Filename tag is the Monte Carlo tag
+`<scenario_id>_seed<seed>_n<n_simulations>`.
+
+### 4.1 `intervention_comparison_<tag>.csv` — one row per portfolio
+
+Baseline first (`rank` empty), then feasible portfolios ranked best-first.
+
+| Column | Type | Notes |
+|---|---|---|
+| `rank` | int | 1 = best by primary benefit; empty for the baseline |
+| `portfolio_id` | str | e.g. `HARDEN`, `RETROFIT+HARDEN`, `BASELINE` |
+| `intervention_types` | str | `+`-joined type values, or `NONE` |
+| `portfolio_cost` | float | Synthetic; `<= budget` for every listed portfolio |
+| `within_budget` | bool | |
+| `n_simulations` | int | |
+| `primary_metric` | str | `population_unreachable` |
+| `primary_objective_baseline` | float | Mean baseline unreachable population |
+| `primary_objective_after` | float | Mean unreachable population with the portfolio |
+| `primary_benefit` | float | Paired mean reduction; `> 0` = fewer unreachable |
+| `primary_benefit_std` | float | |
+| `p05_benefit`, `p50_benefit`, `p95_benefit` | float | Empirical quantiles of paired benefit — **not** confidence intervals |
+| `probability_of_improvement` | float | Fraction of realisations with strictly positive benefit |
+| `benefit_per_cost` | float | Mean benefit / cost; `nan` for the zero-cost baseline |
+| `secondary_*` | float | Side metrics reported separately, never a composite score |
+
+`secondary_*` columns include `delta_n_closed`, `delta_n_collapse`,
+`delta_service_pressure`, `mean_travel_time_after`, and related deltas.
+`service_pressure_*` is assigned-population / total emergency capacity — a
+prototype demand-pressure index carrying the same scale artefact as
+`utilisation_*` (§3, "Reading these numbers").
+
+### 4.2 `intervention_summary_<tag>.json`
+
+```
+scenario_id, seed, n_simulations, budget, primary_metric, primary_objective_note
+validation_split: { selection_fraction, n_selection, n_evaluation, note }
+baseline: { ...outcome... }
+ranked_portfolios: [ { portfolio_id, intervention_types, portfolio_cost,
+                       within_budget, n_simulations, primary_objective_baseline/after,
+                       primary_benefit{mean,std,p05,p50,p95},
+                       probability_of_improvement, benefit_per_cost,
+                       secondary{...}, target_ids{} } ]
+best_portfolio: { portfolio_id, improves_on_baseline, note }
+uncertainty_note, intervention_note, disclaimer
+```
+
+`validation_split` records the out-of-sample split: data-driven hardening targets
+are chosen on `n_selection` realisations, and every reported metric — including
+each outcome's `n_simulations` — is computed on the disjoint `n_evaluation`
+realisations. `best_portfolio` is chosen by the primary objective through
+enumeration, not hard-coded. `intervention_note` records that costs and effects
+are invented, the ranking has no optimality guarantee, and `HOSPITAL_SUPPORT`
+moves only the service-pressure metric.
+
+### 4.3 `intervention_targets_<tag>.gpkg` — spatial layers
+
+`buildings_targeted`, `roads_targeted`, `hospitals_targeted`: the `city.gpkg`
+columns plus a boolean `targeted` flag marking the entities the **best**
+portfolio acts on. A boolean flag only — it invents no geometry and asserts
+nothing about a real place.
+
+---
+
 ## Reading these numbers
 
 - Percentiles describe **Monte Carlo sampling variability within the model's
@@ -180,3 +245,5 @@ and `mean_expected_damage_index` [0,1].
 | Date | Change |
 |---|---|
 | 2026-08-10 | Initial schema: city, single-realisation, and Monte Carlo outputs (Phase 3 + Phase 4). |
+| 2026-08-15 | Phase 5: added intervention comparison outputs — `intervention_comparison_<tag>.csv`, `intervention_summary_<tag>.json`, and `intervention_targets_<tag>.gpkg`. |
+| 2026-08-15 | Phase 5.1: added `validation_split` to the intervention summary JSON; per-portfolio `n_simulations` now reflects the evaluation-set size (out-of-sample target selection). |

@@ -97,6 +97,35 @@ These are not style preferences.
 - Build the `ModelSuite` once per run, not per realisation.
 - Blender never appears in an `import` inside `mre/`.
 
+## Intervention rules (Phase 5)
+
+- Interventions act on **per-entity model parameters** by returning a modified
+  **copy** of the `SyntheticCity` (`Intervention.apply_to_city`), never by
+  mutating the baseline city and never by editing results. This is what keeps
+  targeting real (specific buildings/links/hospitals) rather than a global
+  config bump.
+- Portfolios are compared under **common random numbers**: same seed, same
+  realisation streams, only the per-entity parameters differ. This works only
+  because every stochastic draw is fixed-size and named by
+  `(seed, stage, realisation)`, never by a parameter value. Do not introduce a
+  draw whose *size* depends on a parameter, or the pairing breaks.
+- Benefit is the **paired** difference `baseline[i] − portfolio[i]` per
+  realisation, summarised as a distribution. Never compare a portfolio against
+  an unrelated random sample, and never report a single "best" without its
+  band and probability of improvement.
+- The primary objective is **expected unreachable population**, a single
+  interpretable metric. Do not fold the secondary metrics into a weighted score.
+- Under the current accessibility model, capacity does not gate assignment, so
+  `HOSPITAL_SUPPORT` cannot change the primary objective — it moves only the
+  prototype **service-pressure** metric. Report this, never disguise it.
+- Intervention costs and effect multipliers are **invented** and live in
+  `config/default.toml`; any change belongs in `docs/SCIENTIFIC_ASSUMPTIONS.md`.
+- Data-driven targets are selected on a **selection** subset of realisations and
+  every reported metric is computed on the disjoint **evaluation** subset
+  (`split_realisations`, `selection_fraction`). Never select targets and report
+  their score on the same realisations — that is the in-sample bias the split
+  exists to remove. CRN pairing must hold **within** the evaluation set.
+
 ## Data rules
 
 - `data/**` is gitignored. Synthetic worlds are regenerated from the seed, not

@@ -2,18 +2,23 @@
 
 ## 1. Runtime
 
-MRE-001 runs on **Python 3.12.13**, taken from the QGIS 3.44.12 bundled
+MRE-001 runs on **Python 3.12.13**, taken from the QGIS 3.44.13 bundled
 interpreter:
 
 ```
-C:\Program Files\QGIS 3.44.12\apps\Python312\python.exe
+C:\Program Files\QGIS 3.44.13\apps\Python312\python.exe
 ```
 
 The project venv is created from it with `--system-site-packages`:
 
 ```bash
-"C:\Program Files\QGIS 3.44.12\apps\Python312\python.exe" -m venv --system-site-packages .venv
+"C:\Program Files\QGIS 3.44.13\apps\Python312\python.exe" -m venv --system-site-packages .venv
 ```
+
+(MRE was originally built against the QGIS 3.44.12 bundle; after a machine
+rebuild it moved to 3.44.13, an identical Python 3.12.13 with the same
+GDAL/PROJ/GEOS stack. The QGIS paths live in `config/default.toml` under
+`[environment]`, so a bundle move is a config edit, not a code change.)
 
 **Why this interpreter.** `osgeo`/GDAL has no reliable installable wheel on
 Windows, and building it from source requires a standalone GDAL that this
@@ -130,7 +135,7 @@ EarthquakeScenario
 | `mre.hospitals` | accessibility metrics, paired comparison | 4 ✅ |
 | `mre.simulation` | scenario driver + Monte Carlo orchestration | 3–4 ✅ |
 | `mre.outputs` | serialisation, uncertainty summaries, GIS export | 3–4 ✅ |
-| `mre.optimization` | prototype intervention comparison | 5 |
+| `mre.optimization` | prototype intervention comparison under budget | 5 ✅ |
 
 `mre.rng` is not in the original Phase 1 tree. It was added so `mre.data` and
 `mre.simulation` can both seed themselves without importing each other.
@@ -247,6 +252,55 @@ compared across two unrelated realisations.
 **Reporting.** `distribution_summary` excludes non-finite values and counts them
 in `n_excluded` rather than propagating NaN. Percentiles are empirical
 quantiles, never described as confidence intervals.
+
+## 5b. Intervention comparison (Phase 5)
+
+`mre.optimization` adds a decision layer on top of the Monte Carlo engine
+without touching any scientific stage. Its design rests entirely on the Phase
+3–4 seeding architecture.
+
+```
+build_candidate_interventions(city, config, baseline_result)   # 3 single-type actions
+enumerate_feasible_portfolios(candidates, budget)              # power set within budget
+compare_portfolios  ->  per portfolio: apply_to_city -> run_monte_carlo -> paired benefit
+```
+
+**Effects act on parameters, not results.** An `Intervention` returns a modified
+*copy* of the `SyntheticCity` (`apply_to_city`): retrofit divides a targeted
+building's vulnerability index (equivalently uplifts its fragility medians),
+hardening multiplies a link's closure probability and susceptibility, support
+multiplies a hospital's emergency capacity. The baseline city is never mutated.
+
+**Common random numbers for free.** Every stochastic draw in the engine is a
+fixed-size sample from a stream named `(seed, stage, realisation)` — never keyed
+by a parameter value. So changing a per-entity parameter changes the *threshold*
+a draw is compared against, never the draw itself. Running two portfolios at the
+same seed is therefore automatically paired: realisation *i* of every portfolio
+sees the identical intensity field and identical uniform draws. Benefit is the
+paired difference `baseline[i] − portfolio[i]` per realisation, reported as a
+distribution (mean, P05/P50/P95, probability of improvement) — never a bare
+"best".
+
+**Data-driven targeting, evaluated out-of-sample.** Road hardening targets the
+links most frequently *closed* in a Monte Carlo pre-pass (`link_closed_frequency`),
+which is where the network actually fails — pure edge-betweenness centrality
+misses the peripheral links whose closure strands a population unit. To avoid
+selecting targets and scoring them on the same realisations (an in-sample bias),
+`split_realisations` deterministically partitions the realisations into a
+**selection** set (default 30%, used only to pick targets) and a disjoint
+**evaluation** set (used for every reported metric). The engine's
+`run_monte_carlo(..., realisation_indices=...)` runs an explicit index set, so
+each side keeps its own draws and common random numbers still hold within the
+evaluation set.
+
+**Primary objective:** expected unreachable population, one interpretable metric.
+Secondary metrics (travel time, closures, collapses, service pressure) are
+reported alongside it, never combined into a weighted score.
+
+**Enumeration is the replaceable seam.** For the synthetic slice the candidate
+set is three interventions, so `enumerate_feasible_portfolios` is exact and
+cheap. It is the one function an MILP / heuristic optimizer would replace; the
+domain model and the paired evaluation do not change.
 
 ## 6a. Outputs and the Blender handoff
 

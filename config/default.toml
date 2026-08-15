@@ -14,9 +14,9 @@ crs = "EPSG:32635"
 # Required so pyproj/GDAL can find proj.db and gdal data files. These are set
 # into os.environ by mre.config.bootstrap_geo_env() at import time; the global
 # Windows environment is never modified.
-qgis_root = "C:/Program Files/QGIS 3.44.12"
-gdal_data = "C:/Program Files/QGIS 3.44.12/apps/gdal/share/gdal"
-proj_data = "C:/Program Files/QGIS 3.44.12/share/proj"
+qgis_root = "C:/Program Files/QGIS 3.44.13"
+gdal_data = "C:/Program Files/QGIS 3.44.13/apps/gdal/share/gdal"
+proj_data = "C:/Program Files/QGIS 3.44.13/share/proj"
 blender_exe = "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe"
 
 [random]
@@ -145,18 +145,47 @@ chunk_size = 100
 # docs/SCIENTIFIC_ASSUMPTIONS.md section 6.
 percentiles = [5, 25, 50, 75, 95]
 
+# Phase 5 PROTOTYPE intervention layer. Every number here is SYNTHETIC. None of
+# it is an engineering cost estimate or a measured mitigation effectiveness.
+# See docs/SCIENTIFIC_ASSUMPTIONS.md section 7 and the "Prototype intervention
+# optimization" label rule in CLAUDE.md.
 [interventions]
+# Total synthetic budget. Portfolios costing more than this are infeasible.
 budget = 1000000.0
+# How many top-ranked entities each single-type prototype intervention targets.
+# Selection is a documented, DATA-DRIVEN heuristic run against a baseline Monte
+# Carlo pre-pass, not an optimum:
+#   retrofit -> the most vulnerable buildings
+#   harden   -> the links most frequently CLOSED in the baseline (where the
+#               network actually fails), not merely the most central ones
+#   support  -> the most service-pressured hospitals
+retrofit_n_buildings = 40
+harden_n_links = 30
+support_n_hospitals = 2
+# PROTOTYPE VALIDATION SPLIT. Data-driven road-hardening targets are chosen from
+# a SELECTION subset of the Monte Carlo realisations and every reported metric is
+# computed on the disjoint EVALUATION subset, so target selection never inflates
+# the reported performance (out-of-sample evaluation). This fraction is the
+# selection share; the rest is evaluation. Deterministic given the seed.
+selection_fraction = 0.30
 
 [interventions.building_retrofit]
-cost_per_building = 25000.0
-# Multiplicative increase applied to a building's fragility medians.
+cost_per_building = 12000.0
+# Multiplicative uplift applied to a targeted building's fragility medians,
+# realised as an equivalent DIVISION of its vulnerability index (higher index =
+# more fragile). INVENTED; not a measured retrofit effectiveness.
 fragility_median_uplift = 1.35
 
 [interventions.road_hardening]
-cost_per_link = 40000.0
+cost_per_link = 15000.0
+# Multiplier (<1) applied to a targeted link's baseline closure probability AND
+# its debris susceptibility. INVENTED.
 closure_probability_multiplier = 0.35
 
 [interventions.hospital_support]
 cost_per_hospital = 120000.0
+# Multiplier (>1) applied to a targeted hospital's emergency capacity. Under the
+# current accessibility model, capacity does NOT gate assignment, so this affects
+# the prototype service-pressure metric ONLY -- never who can reach a hospital.
+# INVENTED.
 emergency_capacity_multiplier = 1.5

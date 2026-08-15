@@ -370,21 +370,90 @@ two random draws.
 
 ---
 
-## 7. Interventions
+## 7. Interventions (Phase 5)
 
 Three prototype types: `BUILDING_RETROFIT`, `ROAD_HARDENING`,
-`HOSPITAL_SUPPORT`.
+`HOSPITAL_SUPPORT`. Phase 5 adds a budget-constrained decision layer that
+enumerates every feasible portfolio and ranks them by one objective. It changes
+no scientific stage.
+
+**How effects are modelled.** An intervention returns a modified *copy* of the
+synthetic city, changing per-entity parameters only:
+
+- `BUILDING_RETROFIT` — divides a targeted building's vulnerability index by
+  `fragility_median_uplift` (equivalently, uplifts its fragility medians),
+  floored at the synthetic vulnerability clip.
+- `ROAD_HARDENING` — multiplies a targeted link's baseline closure probability
+  and its debris susceptibility by `closure_probability_multiplier`.
+- `HOSPITAL_SUPPORT` — multiplies a targeted hospital's emergency capacity by
+  `emergency_capacity_multiplier`.
+
+**Primary objective.** A single interpretable metric: **expected unreachable
+population** (lower is better). Secondary metrics — travel time, closures,
+collapses, and a prototype service-pressure index — are reported *separately*.
+They are deliberately never combined into a weighted score, which would hide
+value judgements inside an arbitrary number.
+
+**Common random numbers.** Every portfolio is evaluated at the same seed and the
+same realisation streams as the no-intervention baseline. Because each stochastic
+draw is a fixed-size sample named `(seed, stage, realisation)` and never keyed by
+a parameter value, realisation *i* of every portfolio sees the identical
+intensity field and identical uniform draws. Benefit is therefore the **paired**
+difference `baseline[i] − portfolio[i]`, reported as a distribution (mean,
+P05/P50/P95, and probability of improvement), never a single "best" number. This
+also yields a clean monotonicity property: under common random numbers, fewer
+collapses or fewer closures can only remove disruption, so a structural
+intervention never makes any paired realisation *worse*.
+
+**Targeting is a documented heuristic, not an optimum.** Retrofit targets the
+most vulnerable buildings; hardening targets the links most frequently *closed*
+in a Monte Carlo pre-pass (where the network actually fails, which pure
+centrality misses); support targets the most service-pressured hospitals. None
+of these is claimed optimal.
+
+**Out-of-sample target selection (validation split).** Data-driven hardening
+targets are chosen on a **selection** subset of the realisations
+(`selection_fraction`, default 30%), and every reported metric is computed on the
+disjoint **evaluation** subset (the remaining 70%). Selecting targets and scoring
+them on the *same* realisations would be an in-sample bias: the links that
+happened to fail most in a given draw would be exactly the links hardened, and
+the measured benefit would be partly a fit to that noise. The split removes that
+bias. It is a deterministic, seed-derived permutation, so it is reproducible and
+non-overlapping, and common random numbers are preserved *within* the evaluation
+set (baseline and every portfolio share the same evaluation realisations). This
+is a **prototype validation split** — it removes an in-sample selection artefact
+inside the synthetic slice. It is **not** a statistical validation of the model
+and says nothing about real-world validity. (In the default city the
+out-of-sample hardening benefit is essentially unchanged from the in-sample
+figure, which indicates the benefit was not an artefact of selection.)
+
+**Two honest findings of the default synthetic city, not to be smoothed over:**
+
+- **Hospital support cannot change the primary objective.** Under the Phase 4
+  accessibility model, hospital capacity does **not** gate assignment (§5), so
+  adding emergency capacity changes *who is over-subscribed*, never *who can be
+  reached*. `HOSPITAL_SUPPORT` therefore moves only the prototype
+  service-pressure index and yields exactly zero expected-unreachable-population
+  benefit. This is surfaced in every output, never disguised as accessibility
+  gain. It carries the same population/capacity scale artefact described in §5.
+- **Benefit lives in the tail.** Unreachability is rare in the redundant
+  synthetic grid (nonzero in ~9% of baseline realisations), so even an effective
+  intervention shows benefit only in that minority of realisations and near-zero
+  in the P05–P95 band; the effect appears in the *mean*. Reporting the mean
+  benefit without its low probability of improvement would overstate a typical
+  realisation.
 
 **Limitations:**
 
 - Unit costs are invented and are not engineering cost estimates.
-- Effects are expressed as simple multipliers on model parameters (fragility
-  median uplift, closure-probability reduction, emergency-capacity multiplier).
-  These multipliers are assumed, not measured.
-- The search is a budget-constrained comparison of candidate portfolios with
-  **no optimality guarantee**.
+- Effect multipliers are assumed, not measured.
+- The search is a deterministic exhaustive enumeration of a tiny candidate set
+  with **no optimality guarantee**; it is a strategy seam an MILP/optimizer can
+  replace.
 - Benefit is measured in accessibility terms only — no monetised loss, no
   casualties averted, no equity or distributional analysis of who benefits.
+- Selection heuristics and effects depend on the synthetic layout as much as on
+  the interventions themselves.
 - Political, legal, and implementation feasibility are entirely absent.
 
 Label all such output as **"Prototype intervention optimization"**.
@@ -439,3 +508,5 @@ Until items 1–4 exist, output is a demonstration of software architecture.
 | 2026-08-10 | Initial version for MRE-001 Phase 1 skeleton. |
 | 2026-08-10 | Phase 3: documented the vulnerability index, decoupled population units, the point/line hazard formulation and the `decay_per_km` tuning choice, the fragility difference-of-exceedance formulation and EDI, and the road-disruption density consequence. |
 | 2026-08-10 | Phase 4: documented population-weighted accessibility and the explicit exclusion of unreachable population from travel-time statistics; the hospital utilisation scale artefact; the separation of Monte Carlo sampling variability from model uncertainty and synthetic assumptions; and baseline pairing. |
+| 2026-08-15 | Phase 5: documented the implemented intervention layer — per-entity effect modelling, the single expected-unreachable-population objective with separately-reported secondary metrics, common-random-numbers paired evaluation and its monotonicity property, data-driven hardening targeting, and the two honest findings (hospital support cannot move the primary objective; benefit lives in the tail). |
+| 2026-08-15 | Phase 5.1: added the out-of-sample target-selection split — data-driven hardening targets chosen on a 30% selection subset, all metrics reported on the disjoint 70% evaluation subset, CRN preserved within the evaluation set. Removes in-sample selection bias; not a statistical validation. |

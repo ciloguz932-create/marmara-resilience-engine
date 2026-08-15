@@ -40,11 +40,11 @@ interpreting any output.
 
 ## Environment
 
-Python 3.12 from the QGIS 3.44.12 bundled interpreter, so that the
+Python 3.12 from the QGIS 3.44.13 bundled interpreter, so that the
 GDAL/PROJ/GEOS stack is consistent and no second GDAL is installed.
 
 ```bash
-"C:\Program Files\QGIS 3.44.12\apps\Python312\python.exe" -m venv --system-site-packages .venv
+"C:\Program Files\QGIS 3.44.13\apps\Python312\python.exe" -m venv --system-site-packages .venv
 ```
 
 Verify the environment:
@@ -63,6 +63,12 @@ Run a 1,000-realisation Monte Carlo experiment:
 
 ```bash
 .venv\Scripts\python.exe scripts\run_monte_carlo.py --seed 20260810 -n 1000 --out-dir outputs
+```
+
+Compare prototype intervention portfolios under a budget (Phase 5):
+
+```bash
+.venv\Scripts\python.exe scripts\run_interventions.py --seed 20260810 -n 1000 --out-dir outputs\interventions
 ```
 
 Details and rationale: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -114,7 +120,25 @@ Outputs are GeoPackage (spatial layers and per-element frequencies), CSV
 [docs/OUTPUT_SCHEMA.md](docs/OUTPUT_SCHEMA.md). The future Blender importer
 reads the GeoPackage.
 
-Intervention comparison is a later phase.
+## Intervention comparison (Phase 5)
+
+Given a synthetic budget, the engine enumerates every feasible portfolio of
+three prototype interventions — `BUILDING_RETROFIT`, `ROAD_HARDENING`,
+`HOSPITAL_SUPPORT` — and ranks them by a single interpretable objective:
+**expected unreachable population**. Each portfolio is evaluated by re-running
+the Monte Carlo engine on a modified copy of the city under **common random
+numbers** (same seed, same realisation streams), so realisation *i* of every
+portfolio sees the identical hazard field and draws and the comparison is
+paired, not a difference between unrelated samples.
+
+Benefit is reported as a distribution (mean, P05/P50/P95, and probability of
+improvement), never as a single "best". Secondary metrics (travel time, closures,
+collapses, service pressure) are reported separately and never folded into a
+weighted score. **This is a "Prototype intervention optimization"**: costs and
+effect multipliers are invented, the search has no optimality guarantee, and
+`HOSPITAL_SUPPORT` — under the current accessibility model, where capacity does
+not gate assignment — moves only the service-pressure metric, never the primary
+objective.
 
 ## Reproducibility
 
@@ -135,5 +159,5 @@ the artifact.
 | 2 | Smoke tests: GDAL, GeoPandas/Shapely, geometry, NetworkX, Blender headless | ✅ done |
 | 3 | Synthetic city, hazard, fragility, road disruption | ✅ done |
 | 4 | Hospital accessibility, Monte Carlo, uncertainty reporting | ✅ done |
-| 5 | Prototype intervention optimization | planned |
+| 5 | Prototype intervention optimization (budget, portfolios, CRN, ranking) | ✅ done |
 | 6+ | Real-data layer, Blender visualization | not scoped |

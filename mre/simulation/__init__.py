@@ -26,7 +26,7 @@ one city. Unrelated realisations are never compared against each other.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Iterator
+from typing import Any, Iterator, Sequence
 
 import networkx as nx
 import numpy as np
@@ -381,13 +381,22 @@ def iter_realisations(
     n_simulations: int,
     seed: int,
     models: ModelSuite | None = None,
+    realisation_indices: Sequence[int] | None = None,
 ) -> Iterator[ScenarioResult]:
-    """Yield realisations one at a time, so callers need not hold them all."""
+    """Yield realisations one at a time, so callers need not hold them all.
+
+    By default the contiguous indices ``0 .. n_simulations-1`` are run. Passing
+    ``realisation_indices`` runs exactly those realisation indices instead, in
+    the given order -- used to evaluate an out-of-sample subset while preserving
+    each index's identity (index *i* always draws the same stream). ``n_simulations``
+    is then ignored.
+    """
     models = build_models(config) if models is None else models
     baseline_graph = build_graph(city)
     baseline_accessibility = models.accessibility.evaluate(baseline_graph, city)
 
-    for index in range(n_simulations):
+    indices = range(n_simulations) if realisation_indices is None else realisation_indices
+    for index in indices:
         yield run_scenario(
             city,
             config,
@@ -409,17 +418,30 @@ def run_monte_carlo(
     n_simulations: int | None = None,
     seed: int | None = None,
     models: ModelSuite | None = None,
+    realisation_indices: Sequence[int] | None = None,
 ) -> MonteCarloResult:
     """Run ``n_simulations`` realisations and return the distributions.
 
     Graphs and per-building arrays are discarded as each realisation completes;
     only the flat record and running spatial frequencies are retained.
+
+    ``realisation_indices`` runs exactly those realisation indices instead of the
+    contiguous ``0 .. n_simulations-1`` range, in the given order. Spatial
+    frequencies and the resulting ``n_simulations`` then reflect the size of that
+    subset. This supports an out-of-sample train/evaluation split without
+    breaking common random numbers -- each index keeps its own draws.
     """
     seed = city.seed if seed is None else seed
-    if n_simulations is None:
-        n_simulations = config["monte_carlo"]["n_simulations"]
-    if n_simulations < 1:
-        raise ValueError("n_simulations must be at least 1")
+    if realisation_indices is not None:
+        realisation_indices = tuple(int(i) for i in realisation_indices)
+        if len(realisation_indices) < 1:
+            raise ValueError("realisation_indices must be non-empty")
+        n_simulations = len(realisation_indices)
+    else:
+        if n_simulations is None:
+            n_simulations = config["monte_carlo"]["n_simulations"]
+        if n_simulations < 1:
+            raise ValueError("n_simulations must be at least 1")
 
     models = build_models(config) if models is None else models
     baseline_graph = build_graph(city)
@@ -439,7 +461,12 @@ def run_monte_carlo(
 
     records: list[RealisationRecord] = []
     for result in iter_realisations(
-        city, config, n_simulations=n_simulations, seed=seed, models=models
+        city,
+        config,
+        n_simulations=n_simulations,
+        seed=seed,
+        models=models,
+        realisation_indices=realisation_indices,
     ):
         records.append(_record(result))
 
