@@ -22,8 +22,14 @@ data/synthetic/*
 !data/**/.gitkeep
 
 # --- Simulation outputs ---
-outputs/
+# Anchored to the repo root: an unanchored "outputs/" also matches
+# mre/outputs/, the engine's serialisation package, and silently drops it
+# from every commit. That is exactly what happened before this fix.
+/outputs/
 *.gpkg
+# Real pilot data is regenerated from OpenStreetMap (ODbL) via the fetch
+# script, not committed. The seed/bbox is the artifact, like the synthetic seed.
+*.geojson
 *.geojson
 *.tif
 *.tiff

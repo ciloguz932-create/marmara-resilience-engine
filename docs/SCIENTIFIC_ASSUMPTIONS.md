@@ -501,6 +501,89 @@ Until items 1–4 exist, output is a demonstration of software architecture.
 
 ---
 
+## 10. Real-data pilot (Phase 6)
+
+Phase 6 adds a **real-data pilot** on a real İstanbul study area, alongside the
+synthetic slice. It does **not** make the engine a validated model. The governing
+rule, held throughout: **a value is either taken from a cited source, or marked
+`UNKNOWN` — never invented.** The pilot runs in a distinct `REAL_PILOT` mode
+(`mre.real.CityMode`); the synthetic city remains the default.
+
+**Study area.** Zeytinburnu district core, İstanbul (~2.6 km²). Chosen because it
+is the canonical published İstanbul earthquake-risk pilot (JICA–İMM *Earthquake
+Master Plan for İstanbul*, 2002; Boğaziçi/KOERI seismic risk assessment pilot),
+sits on soft soil by the Marmara Sea, and faces the Main Marmara Fault Princes'
+Islands segment.
+
+**What is REAL** (OpenStreetMap, © OpenStreetMap contributors, **ODbL**; fetched
+via Overpass, recorded in `provenance.json`):
+
+- building footprints and centroids (real polygons, extruded as-is in Blender);
+- storey counts where `building:levels` is tagged (~92% of the pilot);
+- occupancy where the `building` tag is determinable;
+- the road network and its **OSM node topology** (connectivity is real, not
+  reconstructed); road classes from the `highway` tag;
+- hospital locations and names.
+
+**What is `UNKNOWN`** (recorded, never filled): construction year and structural
+system for every building; storey count / occupancy where the tag is absent;
+hospital capacity and bed counts. These appear literally as `UNKNOWN` in the
+output GPKG attribute columns, with `*_source` columns marking provenance.
+
+**What is PROTOTYPE** (assigned and labelled, *not* real):
+
+- **Vulnerability.** Open data carries no structural attributes, so every real
+  building is given a *uniform* prototype vulnerability index. The damage field
+  therefore varies only with the scenario intensity gradient, never with an
+  invented per-building fragility. Labelled `PROTOTYPE_UNIFORM`.
+- **Fragility parameters.** The same invented medians/β as the synthetic engine
+  (§3), applied to real footprints. The damage layer is **"prototype fragility on
+  real geometry"**, not a real damage, loss, or casualty estimate.
+- **Intensity.** A dimensionless *scenario-derived intensity proxy* (§2), **not**
+  PGA/PGV/SA(T)/MMI. The fault **system and segment location are real and cited**
+  (Princes' Islands segment, ~18.5 km south of the pilot); the proxy field's
+  magnitude (`intensity_at_source`) and decay (`decay_per_km`) are **prototype
+  tuning parameters**, exactly as §2 already documents them to be — chosen so the
+  pilot spans a meaningful gradient, and carrying **no** ground-motion meaning at
+  the real fault distance.
+- **Hospital emergency capacity.** OSM has no capacity, so a prototype emergency
+  capacity is assigned. Note the *primary* accessibility objective — who can
+  reach a hospital — does **not** use capacity at all; only the secondary
+  service-pressure metric does, and it is reported as prototype.
+- **Demand.** No licensed real population distribution is used. Demand is a
+  **uniform proxy grid** (`population_source = "UNIFORM_PROXY"`), deliberately
+  decoupled from buildings (as in the synthetic slice). Accessibility results
+  describe geographic/network access, **not** real population impact, and the
+  "population" counts are proxy weights, not people.
+
+**Documented approximations** (real geometry, simplified where the model
+requires it): building footprints enter the disruption-adjacency model as their
+**area-equivalent square** (the engine's `Building.footprint`); road links are
+**junction-to-junction** spans of the real network (real topology, straightened
+geometry in the GIS/Blender output); free-flow travel times use the engine's
+prototype class speeds; edge criticality is not computed for the pilot
+(`NOT_COMPUTED`).
+
+**Sources not machine-ingested in this pilot.** AFAD instrumental catalogue, MTA
+active-fault line geometry, and İBB building/geotechnical datasets are recorded
+as **context/citations** in the scenario provenance rather than ingested as
+layers — they require portal interaction or licensing this pilot does not
+perform. They are marked accordingly, not silently substituted.
+
+**Validation.** Every build runs `mre.real.validation` (valid geometry, single
+consistent CRS, no NaN in required fields, no non-positive road lengths, road
+connectivity, entities within the study area, non-empty demand proxy,
+reproducibility, provenance completeness) and writes `validation.json`; results
+are not presented unless it passes.
+
+**Bottom line.** The real-data pilot demonstrates the *pipeline* running on real
+geometry with honest provenance and integrity labelling. The **geometry, network,
+and hospital locations are real; the physics is prototype**. It is a research
+prototype, not an operational İstanbul earthquake prediction or a real
+damage/loss estimate for any real building, road, or hospital.
+
+---
+
 ## Changelog
 
 | Date | Change |
@@ -510,3 +593,4 @@ Until items 1–4 exist, output is a demonstration of software architecture.
 | 2026-08-10 | Phase 4: documented population-weighted accessibility and the explicit exclusion of unreachable population from travel-time statistics; the hospital utilisation scale artefact; the separation of Monte Carlo sampling variability from model uncertainty and synthetic assumptions; and baseline pairing. |
 | 2026-08-15 | Phase 5: documented the implemented intervention layer — per-entity effect modelling, the single expected-unreachable-population objective with separately-reported secondary metrics, common-random-numbers paired evaluation and its monotonicity property, data-driven hardening targeting, and the two honest findings (hospital support cannot move the primary objective; benefit lives in the tail). |
 | 2026-08-15 | Phase 5.1: added the out-of-sample target-selection split — data-driven hardening targets chosen on a 30% selection subset, all metrics reported on the disjoint 70% evaluation subset, CRN preserved within the evaluation set. Removes in-sample selection bias; not a statistical validation. |
+| 2026-08-16 | Phase 6: added the real-data pilot (§10). Real OSM geometry (Zeytinburnu, ODbL) for buildings/roads/hospitals with full provenance and UNKNOWN marking; prototype fragility/intensity applied to real geometry; uniform demand proxy; sourced Main Marmara Fault scenario with a proxy intensity field. Not a validated model or a real prediction. |
